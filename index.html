@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GST Billing</title>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#16302b;--paper:#fff;--bg:#e9eeec;--line:#b9c7c3;--acc:#0d6b5c;--warn:#a33a2a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 "Public Sans",Arial,sans-serif}
+header{background:var(--ink);color:#fff;padding:12px 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+header h1{font-size:17px;margin:0 auto 0 0}
+button{font:inherit;cursor:pointer;border:1px solid var(--acc);background:var(--acc);color:#fff;padding:7px 14px;border-radius:4px}
+button.ghost{background:transparent;color:inherit;border-color:currentColor}
+header button.ghost{color:#fff}
+button.del{background:none;color:var(--warn);border:0;padding:2px 8px;font-size:18px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #e0a100;outline-offset:1px}
+main{max-width:1100px;margin:16px auto;padding:0 10px}
+.sheet{background:var(--paper);border:1px solid var(--line);padding:18px}
+.top{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.top{grid-template-columns:1fr}}
+label{display:block;font-size:12px;color:#506661;margin-top:6px}
+input,select{width:100%;padding:6px;border:1px solid var(--line);border-radius:3px;font:inherit;background:#fff;color:var(--ink)}
+.title{text-align:center;font-weight:700;font-size:20px;letter-spacing:1px;margin:14px 0 8px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);padding:6px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:1000px}
+th,td{border:1px solid var(--line);padding:3px}
+th{background:#eef3f1;font-size:12px;text-align:left}
+td input{border:0;padding:4px;min-width:50px}
+td.amt{text-align:right;font-weight:600;white-space:nowrap}
+.bottom{display:grid;grid-template-columns:1.2fr 1fr;gap:16px;margin-top:14px}
+@media(max-width:700px){.bottom{grid-template-columns:1fr}}
+.tot{width:100%;min-width:0}
+.tot td{border:0;border-bottom:1px solid var(--line);padding:5px 4px}
+.tot td:last-child{text-align:right}
+.grand td{font-size:18px;font-weight:700;border-bottom:2px solid var(--ink)}
+.words{margin-top:10px;font-style:italic}
+.terms{font-size:12px;color:#506661;margin-top:14px}
+.sign{display:flex;justify-content:space-between;margin-top:34px}
+.hide{display:none}
+#hist table{min-width:0}
+#hist td{padding:7px}
+.empty{padding:20px;text-align:center;color:#506661}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;border-radius:4px;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.on{opacity:1}
+@media print{
+ body{background:#fff}header,.noprint,button.del,#hist{display:none!important}
+ main{margin:0;max-width:none;padding:0}.sheet{border:0;padding:0}
+ input,select{border:0!important;padding:0!important;appearance:none}
+ .scroll{overflow:visible}table{min-width:0;font-size:11px}
+}
+</style>
+</head>
+<body>
+<header>
+ <h1>GST Billing</h1>
+ <button class="ghost" onclick="show('bill')">New bill</button>
+ <button class="ghost" onclick="show('hist')">Saved bills</button>
+</header>
+
+<main>
+<section id="bill">
+ <div class="sheet">
+  <div class="top">
+   <div>
+    <strong>Seller</strong>
+    <label>Shop name<input id="sName"></label>
+    <label>Address<input id="sAddr"></label>
+    <label>Phone<input id="sPhone"></label>
+    <label>GSTIN<input id="sGstin"></label>
+    <label>Drug licence no.<input id="sDl"></label>
+   </div>
+   <div>
+    <strong>Customer</strong>
+    <label>Customer name<input id="cName"></label>
+    <label>Address<input id="cAddr"></label>
+    <label>Phone<input id="cPhone"></label>
+    <label>GSTIN (optional)<input id="cGstin"></label>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+     <label>Invoice no.<input id="invNo"></label>
+     <label>Date<input id="invDate" type="date"></label>
+     <label>Payment<select id="pay"><option>CASH</option><option>CREDIT</option><option>UPI</option></select></label>
+    </div>
+   </div>
+  </div>
+
+  <div class="title">GST INVOICE</div>
+
+  <div class="scroll">
+  <table>
+   <thead><tr><th>Sr. No</th><th>Qty</th><th>Pack</th><th>Product</th><th>MRP</th><th>MRP Discount %</th><th>Rate</th><th>Rate Discount %</th><th>SGST %</th><th>CGST %</th><th>Amount</th><th>Remarks</th><th class="noprint"></th></tr></thead>
+   <tbody id="rows"></tbody>
+  </table>
+  </div>
+  <p class="noprint"><button onclick="addRow()">Add item</button></p>
+
+  <div class="bottom">
+   <div>
+    <table class="tot" id="cls"></table>
+    <div class="words" id="words"></div>
+   </div>
+   <table class="tot">
+    <tr><td>Total discount</td><td id="tDisc"></td></tr>
+    <tr><td>Sub total (after discount)</td><td id="tSub"></td></tr>
+    <tr><td>SGST payable</td><td id="tSgst"></td></tr>
+    <tr><td>CGST payable</td><td id="tCgst"></td></tr>
+    <tr><td>Round off</td><td id="tRound"></td></tr>
+    <tr class="grand"><td>Grand total</td><td id="tGrand"></td></tr>
+   </table>
+  </div>
+
+  <div class="terms">Goods once sold will not be taken back or exchanged. Bills not paid by due date will attract 24% interest.</div>
+  <div class="sign"><span>Receiver</span><span id="forName"></span></div>
+ </div>
+ <p class="noprint">
+  <button onclick="saveBill()">Save bill</button>
+  <button class="ghost" style="color:var(--ink)" onclick="window.print()">Print / Save as PDF</button>
+  <button class="ghost" style="color:var(--ink)" onclick="newBill()">Clear for new bill</button>
+ </p>
+</section>
+
+<section id="hist" class="hide">
+ <div class="sheet"><div class="scroll" id="histBody"></div></div>
+</section>
+</main>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+ set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){toast("Browser storage is blocked")}}};
+const money=n=>(Math.round((n+Number.EPSILON)*100)/100).toFixed(2);
+const sellerIds=["sName","sAddr","sPhone","sGstin","sDl"];
+const defaults={sName:" ",sAddr:" ",sPhone:"",sGstin:"",sDl:""};
+
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("on");setTimeout(()=>t.classList.remove("on"),1800)}
+function show(id){$("bill").classList.toggle("hide",id!=="bill");$("hist").classList.toggle("hide",id!=="hist");if(id==="hist")renderHist()}
+
+function addRow(d){
+ d=d||{qty:1,sgst:2.5,cgst:2.5};
+ const tr=document.createElement("tr");
+ const f=(k,t,w)=>`<td><input data-k="${k}" type="${t||'text'}" ${t==='number'?'step="any" min="0"':''} value="${d[k]!==undefined?d[k]:''}" style="width:${w||80}px"></td>`;
+ tr.innerHTML=`<td class="sn"></td>${f("qty","number",55)}${f("pack","",60)}${f("product","",170)}${f("mrp","number",75)}${f("mdis","number",70)}${f("rate","number",75)}${f("rdis","number",70)}${f("sgst","number",55)}${f("cgst","number",55)}<td class="amt">0.00</td>${f("remarks","",100)}<td class="noprint"><button class="del" title="Remove item" aria-label="Remove item">&times;</button></td>`;
+ tr.addEventListener("input",e=>{
+  const k=e.target.dataset.k,q=x=>tr.querySelector(`[data-k=${x}]`);
+  if(k==="mrp"||k==="mdis"){
+   const m=parseFloat(q("mrp").value)||0;
+   if(m>0)q("rate").value=+(m*(1-(parseFloat(q("mdis").value)||0)/100)).toFixed(2);
+  }
+  calc();
+ });
+ tr.querySelector(".del").onclick=()=>{tr.remove();calc()};
+ $("rows").appendChild(tr);calc();
+}
+function items(){
+ return [...$("rows").children].map(tr=>{
+  const o={};tr.querySelectorAll("input").forEach(i=>o[i.dataset.k]=i.value);
+  const n=k=>parseFloat(o[k])||0;
+  const gross=n("qty")*n("rate"),disc=gross*n("rdis")/100,tax=gross-disc;
+  const sg=tax*n("sgst")/100,cg=tax*n("cgst")/100;
+  return {...o,gross,disc,tax,sg,cg,amount:tax+sg+cg,rateTotal:n("sgst")+n("cgst"),tr};
+ });
+}
+function calc(){
+ const it=items();let sub=0,sg=0,cg=0,disc=0;const cls={};
+ it.forEach((x,i)=>{
+  x.tr.querySelector(".sn").textContent=i+1;
+  x.tr.querySelector(".amt").textContent=money(x.amount);
+  sub+=x.tax;sg+=x.sg;cg+=x.cg;disc+=x.disc;
+  const c=cls[x.rateTotal]=cls[x.rateTotal]||{t:0,d:0,s:0,c:0};c.t+=x.gross;c.d+=x.disc;c.s+=x.sg;c.c+=x.cg;
+ });
+ const exact=sub+sg+cg,grand=Math.round(exact);
+ $("tDisc").textContent=money(disc);$("tSub").textContent=money(sub);
+ $("tSgst").textContent=money(sg);$("tCgst").textContent=money(cg);
+ $("tRound").textContent=money(grand-exact);$("tGrand").textContent=money(grand);
+ $("words").textContent="Rs. "+words(grand)+" only";
+ let h="<tr><td><b>GST class</b></td><td><b>Total</b></td><td><b>Disc</b></td><td><b>SGST</b></td><td><b>CGST</b></td></tr>";
+ Object.keys(cls).sort((a,b)=>a-b).forEach(k=>{const c=cls[k];h+=`<tr><td>GST ${money(+k)}</td><td>${money(c.t)}</td><td>${money(c.d)}</td><td>${money(c.s)}</td><td>${money(c.c)}</td></tr>`});
+ $("cls").innerHTML=h;
+ $("forName").textContent="For "+$("sName").value;
+ return {sub,gst:sg+cg,grand,exact};
+}
+
+const O=["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"];
+const T=["","","Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
+function words(n){
+ if(n===0)return"Zero";
+ if(n<20)return O[n];
+ if(n<100)return T[Math.floor(n/10)]+(n%10?" "+O[n%10]:"");
+ if(n<1000)return O[Math.floor(n/100)]+" Hundred"+(n%100?" and "+words(n%100):"");
+ if(n<100000)return words(Math.floor(n/1000))+" Thousand"+(n%1000?" "+words(n%1000):"");
+ if(n<10000000)return words(Math.floor(n/100000))+" Lakh"+(n%100000?" "+words(n%100000):"");
+ return words(Math.floor(n/10000000))+" Crore"+(n%10000000?" "+words(n%10000000):"");
+}
+
+function nextNo(){return "A"+String((store.get("counter",0))+1).padStart(6,"0")}
+function snapshot(){
+ const t=calc();
+ return {no:$("invNo").value,date:$("invDate").value,pay:$("pay").value,
+  seller:Object.fromEntries(sellerIds.map(i=>[i,$(i).value])),
+  cust:{cName:$("cName").value,cAddr:$("cAddr").value,cPhone:$("cPhone").value,cGstin:$("cGstin").value},
+  items:items().map(({tr,...r})=>r),grand:t.grand};
+}
+function saveBill(){
+ const b=snapshot();
+ if(!b.items.length){toast("Add at least one item");return}
+ store.set("seller",b.seller);
+ const list=store.get("bills",[]);
+ const i=list.findIndex(x=>x.no===b.no);
+ if(i>=0)list[i]=b;else{list.unshift(b);store.set("counter",parseInt(b.no.replace(/\D/g,""))||store.get("counter",0)+1)}
+ store.set("bills",list);toast("Bill "+b.no+" saved");
+}
+function loadBill(b){
+ sellerIds.forEach(i=>$(i).value=b.seller[i]||"");
+ $("cName").value=b.cust.cName;$("cAddr").value=b.cust.cAddr;$("cPhone").value=b.cust.cPhone;$("cGstin").value=b.cust.cGstin;
+ $("invNo").value=b.no;$("invDate").value=b.date;$("pay").value=b.pay;
+ $("rows").innerHTML="";b.items.forEach(addRow);show("bill");
+}
+function newBill(){
+ ["cName","cAddr","cPhone","cGstin"].forEach(i=>$(i).value="");
+ $("rows").innerHTML="";addRow();
+ $("invNo").value=nextNo();$("invDate").valueAsDate=new Date();$("pay").value="CASH";
+}
+function renderHist(){
+ const list=store.get("bills",[]);
+ if(!list.length){$("histBody").innerHTML='<div class="empty">No saved bills yet. Create a bill and press Save bill.</div>';return}
+ let h="<table><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Total</th><th></th></tr>";
+ list.forEach((b,i)=>h+=`<tr><td>${esc(b.no)}</td><td>${esc(b.date)}</td><td>${esc(b.cust.cName)}</td><td>${money(b.grand)}</td><td><button onclick="openBill(${i})">Open</button> <button class="ghost" style="color:var(--warn)" onclick="delBill(${i})">Delete</button></td></tr>`);
+ $("histBody").innerHTML=h+"</table>";
+}
+const esc=s=>String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function openBill(i){loadBill(store.get("bills",[])[i])}
+function delBill(i){if(!confirm("Delete this bill?"))return;const l=store.get("bills",[]);l.splice(i,1);store.set("bills",l);renderHist()}
+
+const s=store.get("seller",defaults);
+sellerIds.forEach(i=>{$(i).value=s[i]||"";$(i).addEventListener("input",calc)});
+newBill();
+</script>
+</body>
+</html>
